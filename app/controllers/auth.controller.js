@@ -47,12 +47,17 @@ const loginController = async (req, res) => {
     if (req.body.password === originalPass) {
       const { password, ...other } = user._doc;
 
-      const accessToken = jwt.sign({
-        id: user.id,
-        isAdmin: user.isAdmin,
-      });
+      const accessToken = jwt.sign(
+        {
+          id: user._id,
+          isAdmin: user.isAdmin,
+        },
+        process.env.JWT_SECURE,
+        { expiresIn: '3d' },
+      );
       res.status(200).json({
-        other,
+        ...other,
+        accessToken,
       });
     } else {
       res.status(401).json({
