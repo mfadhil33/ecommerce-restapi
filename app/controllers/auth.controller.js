@@ -46,8 +46,10 @@ const loginController = async (req, res) => {
     const originalPass = decryptPass.toString(CryptoJs.enc.Utf8);
     if (req.body.password === originalPass) {
       const { password, ...other } = user._doc;
-
-      const accessToken = jwt.sign(
+      // eslint-disable-next-line prefer-const
+      let refreshTokens = [];
+      // send jwt access token
+      const accessToken = await jwt.sign(
         {
           id: user._id,
           isAdmin: user.isAdmin,
@@ -55,9 +57,25 @@ const loginController = async (req, res) => {
         process.env.JWT_SECURE,
         { expiresIn: '3d' },
       );
+
+      // refresh token
+
+      const refreshToken = await jwt.sign(
+        {
+          id: user._id,
+          isAdmin: user.isAdmin,
+        },
+        process.env.JWT_REFRESH,
+        { expiresIn: '1m' },
+      );
+
+      // set refresh token in refreshTokens array
+      refreshTokens.push(refreshToken);
+
       res.status(200).json({
         ...other,
         accessToken,
+        refreshToken,
       });
     } else {
       res.status(401).json({
@@ -70,4 +88,65 @@ const loginController = async (req, res) => {
     });
   }
 };
+
+// create new access tokken from refresh token
+const refreshTokenn = async (req, res) => {
+  const refreshToken = req.header('x-auth-token');
+  // eslint-disable-next-line prefer-const
+  let refreshTokens = [];
+  // if token is not provided, send error message
+  if (!refreshToken) {
+    res.status(401).json({
+      errors: [
+        {
+          message: 'Toket not found',
+        },
+      ],
+    });
+  }
+
+  // if token does not exist, send error message
+  if (!refreshTokens.includes(refreshToken)) {
+    res.status(403).json({
+      errors: [
+
+        {
+          message: 'Invalid refresh token',
+        },
+      ],
+    });
+  }
+
+  try {
+    const user = await jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH,
+    );
+    // eslint-disable-next-line no-unused-vars
+    const { id, isAdmin } = user;
+    const accessToken = await jwt.sign(
+      {
+        id,
+        isAdmin,
+      },
+      process.env.JWT_SECURE,
+      { expiresIn: '10s' },
+    );
+    res.json({ accessToken });
+  } catch (error) {
+    res.status(403).json({
+      errors: [
+        {
+          message: 'Invalid Token',
+        },
+      ],
+    });
+  }
+};
+
+// deauthenticate - logout
+// delete refresh token
+// eslint-disable-next-line no-unused-vars
+// const Deauthenticate = async();
+
 module.exports = { registController, loginController };
